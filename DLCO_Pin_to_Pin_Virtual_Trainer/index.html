@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DLCO Virtual IC Trainer Kit Simulator — Real Pin-to-Pin Lab Kit</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- Top Navigation & Utility Bar -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="header-badge">HARDWARE LAB INSTRUMENT</div>
+      <h1>DLCO Pin-to-Pin Virtual Trainer Kit</h1>
+      <p class="subtitle">Digital Logic &amp; Computer Organization • Real IC Pin Wiring &amp; Electrical Simulation</p>
+    </div>
+
+    <div class="header-controls">
+      <button id="btnExpGuide" class="btn btn-primary" title="Open Lab Practicals, Wiring Guides & Viva Questions">
+        📖 Lab Practicals &amp; Viva (19 Experiments)
+      </button>
+      <button id="btnDiagnostics" class="btn btn-secondary" title="View Real-Time Circuit Diagnostics">
+        🔍 Circuit Diagnostics <span id="diagBadge" class="badge ok">OK</span>
+      </button>
+      <div class="wire-color-picker" title="Select Patch Wire Color">
+        <label for="wireColorSelect">Wire:</label>
+        <select id="wireColorSelect">
+          <option value="auto">Auto (VCC:Red, GND:Green, Signal:Blue)</option>
+          <option value="#2563eb">Blue (Signal)</option>
+          <option value="#dc2626">Red (VCC / High)</option>
+          <option value="#16a34a">Green (GND / Low)</option>
+          <option value="#d97706">Amber (Clock / Data)</option>
+          <option value="#7c3aed">Purple</option>
+          <option value="#0d9488">Cyan</option>
+          <option value="#111827">Black</option>
+        </select>
+      </div>
+      <div class="zoom-controls">
+        <button id="btnZoomOut" class="btn-icon" title="Zoom Out">−</button>
+        <span id="zoomLabel">100%</span>
+        <button id="btnZoomIn" class="btn-icon" title="Zoom In">+</button>
+        <button id="btnZoomReset" class="btn-icon" title="Reset View">⟲</button>
+      </div>
+      <button id="btnClearWires" class="btn btn-warning" title="Remove all wires from the board">Clear Wires</button>
+      <button id="btnResetBoard" class="btn btn-danger" title="Clear entire board (ICs and wires)">Reset Board</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace: Briefcase Enclosure around Trainer Faceplate -->
+  <div class="workspace-wrapper">
+
+    <!-- Outer Wooden Briefcase Enclosure -->
+    <div class="wooden-case">
+      <!-- Top Metal Hinges of Briefcase -->
+      <div class="case-hinge hinge-left"></div>
+      <div class="case-hinge hinge-center"></div>
+      <div class="case-hinge hinge-right"></div>
+
+      <!-- Inner Metal Rim & Screws -->
+      <div class="case-inner-rim">
+
+        <!-- THE PHYSICAL TRAINER BOARD (FACEPLATE) -->
+        <div id="trainerBoard" class="trainer-faceplate">
+
+          <!-- Faceplate Corner Screws -->
+          <div class="plate-screw screw-tl"></div>
+          <div class="plate-screw screw-tr"></div>
+          <div class="plate-screw screw-bl"></div>
+          <div class="plate-screw screw-br"></div>
+          <div class="plate-screw screw-tc"></div>
+          <div class="plate-screw screw-bc"></div>
+
+          <!-- ============================================================== -->
+          <!-- TOP ROW: OUTPUT SECTION, 7-SEGMENT & PROBE, MAINS POWER SWITCH -->
+          <!-- ============================================================== -->
+          <div class="board-top-bar">
+
+            <!-- OUTPUT SECTION: 16 LEDs with Output Terminals OP16 to OP1 -->
+            <div class="panel-section output-section">
+              <div class="section-title text-red">OUTPUT SECTION</div>
+              <div class="output-led-row">
+                <!-- 16 Output Units: L16 to L1 (rendered dynamically or static) -->
+                <div id="outputUnitsContainer" class="output-units-grid"></div>
+              </div>
+            </div>
+
+            <!-- 7-SEGMENT DISPLAY & LOGIC PROBE SECTION -->
+            <div class="panel-section display-probe-section">
+              <div class="section-title">7 SEGMENT DISPLAY</div>
+              <div class="seven-seg-cluster">
+                <!-- Display A -->
+                <div class="seven-seg-box">
+                  <div class="display-digits" id="dispADigits">
+                    <div class="seg-display" id="segA">0</div>
+                  </div>
+                  <div class="seven-seg-terminals">
+                    <div class="term-pair"><span class="term-lbl">A3</span>
+                      <div class="terminal-jack" data-tid="seg:a3" title="7-Seg A Bit 3 (MSB)"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">A2</span>
+                      <div class="terminal-jack" data-tid="seg:a2" title="7-Seg A Bit 2"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">A1</span>
+                      <div class="terminal-jack" data-tid="seg:a1" title="7-Seg A Bit 1"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">A0</span>
+                      <div class="terminal-jack" data-tid="seg:a0" title="7-Seg A Bit 0 (LSB)"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Display B -->
+                <div class="seven-seg-box">
+                  <div class="display-digits" id="dispBDigits">
+                    <div class="seg-display" id="segB">0</div>
+                  </div>
+                  <div class="seven-seg-terminals">
+                    <div class="term-pair"><span class="term-lbl">B3</span>
+                      <div class="terminal-jack" data-tid="seg:b3" title="7-Seg B Bit 3 (MSB)"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">B2</span>
+                      <div class="terminal-jack" data-tid="seg:b2" title="7-Seg B Bit 2"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">B1</span>
+                      <div class="terminal-jack" data-tid="seg:b1" title="7-Seg B Bit 1"></div>
+                    </div>
+                    <div class="term-pair"><span class="term-lbl">B0</span>
+                      <div class="terminal-jack" data-tid="seg:b0" title="7-Seg B Bit 0 (LSB)"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Logic Probe -->
+                <div class="logic-probe-box">
+                  <div class="probe-title">LOGIC<br>PROBE</div>
+                  <div class="probe-indicators">
+                    <div class="probe-led-wrap">
+                      <div id="probeLedH" class="lamp probe-lamp-h"></div><span>H</span>
+                    </div>
+                    <div class="probe-led-wrap">
+                      <div id="probeLedL" class="lamp probe-lamp-l"></div><span>L</span>
+                    </div>
+                  </div>
+                  <div class="terminal-jack jack-probe" data-tid="probe" title="Logic Probe Input Terminal"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- MAINS POWER ROCKER SWITCH & INDICATOR -->
+            <div class="panel-section power-switch-section">
+              <div class="mains-switch-box">
+                <div class="switch-labels">
+                  <span class="lbl-on">ON</span>
+                  <span class="lbl-off">OFF</span>
+                </div>
+                <div id="mainsPowerSwitch" class="rocker-switch on" title="Toggle Main Trainer Power">
+                  <div class="rocker-handle"></div>
+                </div>
+                <div class="power-lamp-wrap">
+                  <div id="mainsPowerLed" class="lamp lamp-power on"></div>
+                  <span class="mains-power-lbl">POWER</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- UPPER RAIL: VCC (+5V) STRIP WITH 10 RED BANANA SOCKETS         -->
+          <!-- ============================================================== -->
+          <div class="board-rail rail-vcc">
+            <div class="rail-header">
+              <span class="rail-title text-vcc">VCC (+5V)</span>
+              <span class="rail-note">All VCC terminals share the common +5V supply line. Connect IC VCC pins
+                here.</span>
+            </div>
+            <div class="rail-terminals" id="vccTerminalsContainer">
+              <!-- 10 VCC terminals in 5 pairs matching the 5 sockets -->
+            </div>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- MIDDLE SECTION: 5 DIP/ZIF SOCKETS (U1..U5) + 1 LARGE SOCKET U6 -->
+          <!-- ============================================================== -->
+          <div class="board-sockets-section">
+            <div class="sockets-grid" id="socketsContainer">
+              <!-- U1 to U5 + U6 will be rendered with fixed pin coordinates -->
+            </div>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- LOWER RAIL: GROUND (0V) STRIP WITH 10 GREEN BANANA SOCKETS    -->
+          <!-- ============================================================== -->
+          <div class="board-rail rail-gnd">
+            <div class="rail-header">
+              <span class="rail-title text-gnd">GROUND (0V)</span>
+              <span class="rail-note">All GROUND terminals share the common 0V reference. Connect IC GND pins
+                here.</span>
+            </div>
+            <div class="rail-terminals" id="gndTerminalsContainer">
+              <!-- 10 GND terminals in 5 pairs matching the 5 sockets -->
+            </div>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- BOTTOM ROW: INPUT SWITCHES (S16..S1) & CLOCK/PULSER SECTION   -->
+          <!-- ============================================================== -->
+          <div class="board-bottom-bar">
+
+            <!-- INPUT SWITCHES SECTION: 16 Switches S16 to S1 -->
+            <div class="panel-section input-section">
+              <div class="section-header-compact">
+                <span class="section-title">INPUT LOGIC SWITCHES</span>
+                <span class="section-subtitle">Toggle switch UP = HIGH (1), DOWN = LOW (0). Connect terminals IP16..IP1
+                  to IC inputs.</span>
+              </div>
+              <div class="input-switches-row">
+                <div id="inputUnitsContainer" class="input-units-grid"></div>
+              </div>
+            </div>
+
+            <!-- CLOCK & PULSER SECTION -->
+            <div class="panel-section clock-section">
+              <div class="clock-pulser-wrapper">
+
+                <!-- Continuous Clock Generator -->
+                <div class="clock-sub-box">
+                  <div class="section-title text-clock">CLOCK SECTION</div>
+                  <div class="clock-controls-cluster">
+                    <div class="clock-state-row">
+                      <div id="clockStatusLed" class="lamp lamp-clock"></div>
+                      <span id="clockStatusText" class="clock-rate-text">STOPPED</span>
+                    </div>
+
+                    <div class="clock-buttons">
+                      <button id="btnClockStartStop" class="btn-clock-toggle"
+                        title="Start or Stop Continuous Clock">RUN</button>
+                    </div>
+
+                    <div class="clock-speed-control">
+                      <label for="clockFreqSlider">Rate: <span id="clockFreqDisplay">1.0 Hz</span></label>
+                      <input type="range" id="clockFreqSlider" min="0.2" max="5.0" step="0.2" value="1.0">
+                    </div>
+
+                    <div class="clock-terminals-group">
+                      <div class="term-pair">
+                        <span class="term-lbl">CLK</span>
+                        <div class="terminal-jack jack-clk" data-tid="clk:main" title="Clock Output (Active High)">
+                        </div>
+                      </div>
+                      <div class="term-pair">
+                        <span class="term-lbl">CLK̅</span>
+                        <div class="terminal-jack jack-clk-bar" data-tid="clk:bar"
+                          title="Inverted Clock Output (Active Low)"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Manual Single Pulse Generator (Pulser) -->
+                <div class="pulser-sub-box">
+                  <div class="section-title text-pulser">PULSER</div>
+                  <div class="pulser-controls-cluster">
+                    <div class="pulser-lamp-row">
+                      <div id="pulserLed" class="lamp lamp-pulser"></div>
+                      <span class="pulser-label">1-PULSE</span>
+                    </div>
+
+                    <button id="btnManualPulse" class="btn-hardware-push"
+                      title="Press for a single clean clock pulse (Falling edge: 1 -> 0 -> 1)">
+                      PUSH
+                    </button>
+
+                    <div class="term-pair pulser-term-pair">
+                      <span class="term-lbl">PULSE</span>
+                      <div class="terminal-jack jack-pulser" data-tid="clk:pulse" title="Manual Pulser Output Terminal">
+                      </div>
+                    </div>
+
+                    <div class="pulse-counter-display">
+                      <span class="counter-lbl">PULSES:</span>
+                      <span id="pulseCountVal" class="counter-num">00</span>
+                      <button id="btnResetCounter" class="btn-micro" title="Reset Counter">CLR</button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- SVG LAYER FOR INTERACTIVE REALISTIC PATCH WIRES                -->
+          <!-- ============================================================== -->
+          <svg id="wiresSvg" class="wires-canvas"></svg>
+
+        </div>
+        <!-- /trainer-faceplate -->
+      </div>
+      <!-- /case-inner-rim -->
+    </div>
+    <!-- /wooden-case -->
+
+  </div>
+  <!-- /workspace-wrapper -->
+
+  <!-- Status & Interactive Feedback Bar -->
+  <footer class="app-statusbar">
+    <div class="status-left">
+      <span class="status-icon">⚡</span>
+      <span id="statusMessage">Trainer Ready. Select an IC from a socket or load a lab experiment to begin.</span>
+    </div>
+    <div class="status-center">
+      <span id="wireActionPrompt" class="wire-prompt">Wiring Mode: Click any pin or terminal to start a wire.</span>
+      <button id="btnCancelWire" class="btn-mini hidden">Cancel Wire (Esc)</button>
+      <button id="btnDeleteSelectedWire" class="btn-mini btn-danger hidden">Delete Wire (Del)</button>
+    </div>
+    <div class="status-right">
+      <span id="wireCountDisplay">0 Wires</span>
+      <span class="separator">|</span>
+      <span id="activeIcCountDisplay">0 ICs Seated</span>
+    </div>
+  </footer>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL: IC SELECTOR DIALOG (Triggered when user clicks an empty socket)-->
+  <!-- ==================================================================== -->
+  <div id="icSelectorModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="icModalSocketTitle">Insert IC into Socket U1</h3>
+        <button id="btnCloseIcModal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Select a TTL 74-Series digital logic IC to insert into this socket:</p>
+        <div class="ic-library-grid">
+
+          <div class="ic-card" data-ic="7400">
+            <div class="ic-card-header">
+              <span class="ic-code">7400</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Quad 2-Input NAND Gate</div>
+            <div class="ic-desc">Four independent 2-input NAND gates. Pin 14: VCC, Pin 7: GND.</div>
+            <div class="ic-pins-preview">Inputs: 1A,1B,2A,2B... • Outputs: 1Y,2Y...</div>
+          </div>
+
+          <div class="ic-card" data-ic="7404">
+            <div class="ic-card-header">
+              <span class="ic-code">7404</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Hex Inverter (NOT Gates)</div>
+            <div class="ic-desc">Six independent inverter gates. Pin 14: VCC, Pin 7: GND.</div>
+            <div class="ic-pins-preview">Inputs: 1A,2A,3A... • Outputs: 1Y,2Y,3Y...</div>
+          </div>
+
+          <div class="ic-card" data-ic="7408">
+            <div class="ic-card-header">
+              <span class="ic-code">7408</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Quad 2-Input AND Gate</div>
+            <div class="ic-desc">Four independent 2-input AND gates. Pin 14: VCC, Pin 7: GND.</div>
+            <div class="ic-pins-preview">Inputs: 1A,1B,2A,2B... • Outputs: 1Y,2Y...</div>
+          </div>
+
+          <div class="ic-card" data-ic="7432">
+            <div class="ic-card-header">
+              <span class="ic-code">7432</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Quad 2-Input OR Gate</div>
+            <div class="ic-desc">Four independent 2-input OR gates. Pin 14: VCC, Pin 7: GND.</div>
+            <div class="ic-pins-preview">Inputs: 1A,1B,2A,2B... • Outputs: 1Y,2Y...</div>
+          </div>
+
+          <div class="ic-card" data-ic="7486">
+            <div class="ic-card-header">
+              <span class="ic-code">7486</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Quad 2-Input XOR Gate</div>
+            <div class="ic-desc">Four independent 2-input Exclusive-OR gates. Pin 14: VCC, Pin 7: GND.</div>
+            <div class="ic-pins-preview">Inputs: 1A,1B,2A,2B... • Outputs: 1Y,2Y...</div>
+          </div>
+
+          <div class="ic-card" data-ic="74151">
+            <div class="ic-card-header">
+              <span class="ic-code">74151</span>
+              <span class="ic-pkg">16-Pin DIP</span>
+            </div>
+            <div class="ic-name">8-Line to 1-Line Multiplexer</div>
+            <div class="ic-desc">8 data inputs (D0-D7), 3 select lines (C,B,A), Strobe G̅. True Y &amp; inverted W
+              outputs. Pin 16: VCC, Pin 8: GND.</div>
+            <div class="ic-pins-preview">Inputs: D0..D7, A,B,C, G̅ • Outputs: Y, W</div>
+          </div>
+
+          <div class="ic-card" data-ic="7476">
+            <div class="ic-card-header">
+              <span class="ic-code">7476</span>
+              <span class="ic-pkg">16-Pin DIP</span>
+            </div>
+            <div class="ic-name">Dual J-K Flip-Flop with Preset &amp; Clear</div>
+            <div class="ic-desc">Two independent negative-edge J-K flip-flops with active-low Preset and Clear. Pin 5:
+              VCC, Pin 13: GND.</div>
+            <div class="ic-pins-preview">Inputs: CLK, J, K, PRE̅, CLR̅ • Outputs: Q, Q̅</div>
+          </div>
+
+          <div class="ic-card" data-ic="7490">
+            <div class="ic-card-header">
+              <span class="ic-code">7490</span>
+              <span class="ic-pkg">14-Pin DIP</span>
+            </div>
+            <div class="ic-name">Decade &amp; Binary Counter</div>
+            <div class="ic-desc">Contains divide-by-2 and divide-by-5 counters with master reset and set. Pin 5: VCC,
+              Pin 10: GND.</div>
+            <div class="ic-pins-preview">Inputs: CKA, CKB, R0(1), R0(2), R9(1), R9(2) • Outputs: QA, QB, QC, QD</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- DRAWER: EXPERIMENT REFERENCE, PRACTICALS & VIVA HELPER (19 Practicals) -->
+  <!-- ==================================================================== -->
+  <aside id="experimentDrawer" class="drawer-panel hidden">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <h2>DLCO Laboratory Practicals &amp; Viva Voce</h2>
+        <p>Curriculum reference guides, wiring schematics, truth tables, and viva answers</p>
+      </div>
+      <button id="btnCloseDrawer" class="btn-close">&times;</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Practical Selector Dropdown -->
+      <div class="experiment-select-box">
+        <label for="practicalSelect">Select Practical / Experiment:</label>
+        <select id="practicalSelect" class="practical-dropdown">
+          <optgroup label="Combinational Logic Practicals">
+            <option value="exp1">1. Full Adder (Sum &amp; Carry using XOR, AND, OR)</option>
+            <option value="exp2">2. Full Subtractor (Difference &amp; Borrow)</option>
+            <option value="exp3">3. 3-bit Binary to Gray Code Converter</option>
+            <option value="exp4">4. 4-bit Binary to Gray Code Converter</option>
+            <option value="exp5">5. 1-bit Magnitude Comparator (A&gt;B, A=B, A&lt;B)</option>
+            <option value="exp6">6. Even Parity Generator and Checker</option>
+            <option value="exp7">7. Odd Parity Generator and Checker</option>
+            <option value="exp8">8. 8-to-1 Multiplexer Verification (IC 74151)</option>
+            <option value="exp9">9. Boolean Function: F(A,B,C) = Σm(0,3,5,6) via 74151</option>
+            <option value="exp10">10. Boolean Function: F(A,B,C,D) = Σm(1,2,4,7,8,10,11,13,15) via 74151</option>
+          </optgroup>
+          <optgroup label="Sequential Logic & Counter Practicals">
+            <option value="exp11">11. 2-bit Asynchronous Ripple Up Counter (IC 7476)</option>
+            <option value="exp12">12. 3-bit Asynchronous Ripple Up Counter (IC 7476)</option>
+            <option value="exp13">13. 4-bit Asynchronous Ripple Up Counter (IC 7476)</option>
+            <option value="exp14">14. 2-bit Asynchronous Ripple Down Counter (IC 7476)</option>
+            <option value="exp15">15. 3-bit Asynchronous Ripple Down Counter (IC 7476)</option>
+            <option value="exp16">16. 4-bit Asynchronous Ripple Down Counter (IC 7476)</option>
+            <option value="exp17">17. 2-bit Asynchronous Ripple Up-Down Counter</option>
+            <option value="exp18">18. 4-bit Asynchronous Ripple Up-Down Counter</option>
+            <option value="exp19">19. MOD-N Decade &amp; Modulo Counter using IC 7490</option>
+          </optgroup>
+        </select>
+        <div class="exp-action-btns">
+          <button id="btnLoadExpTemplate" class="btn btn-primary"
+            title="Insert required ICs into sockets for this practical">
+            ⚡ Setup ICs For This Lab
+          </button>
+          <button id="btnAutoWireExp" class="btn btn-secondary"
+            title="Load complete reference wiring on the board for testing">
+            🔌 Auto-Wire Reference Circuit
+          </button>
+          <button id="btnVerifyCircuit" class="btn btn-accent" title="Test user circuit against expected truth table">
+            ✓ Check My Wiring &amp; Truth Table
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Verification Result Banner -->
+      <div id="verificationResultBox" class="verification-box hidden"></div>
+
+      <!-- Practical Detail Content Container -->
+      <div id="experimentDetailContainer" class="experiment-details">
+        <!-- Dynamically injected experiment documentation -->
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL: CIRCUIT DIAGNOSTICS & ELECTRICAL HEALTH REPORT                -->
+  <!-- ==================================================================== -->
+  <div id="diagnosticsModal" class="modal-backdrop hidden">
+    <div class="modal-card modal-wide">
+      <div class="modal-header">
+        <h3>🔍 Live Electrical Diagnostics &amp; Net Audit</h3>
+        <button id="btnCloseDiagModal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="diagSummaryBanner" class="diag-summary-banner"></div>
+        <div class="diag-sections-grid">
+          <div class="diag-block">
+            <h4>Power &amp; Ground Health</h4>
+            <div id="diagPowerList" class="diag-list"></div>
+          </div>
+          <div class="diag-block">
+            <h4>Signal &amp; Pin Integrity</h4>
+            <div id="diagSignalList" class="diag-list"></div>
+          </div>
+          <div class="diag-block">
+            <h4>Active Nets &amp; Drivers</h4>
+            <div id="diagNetList" class="diag-list font-mono"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
