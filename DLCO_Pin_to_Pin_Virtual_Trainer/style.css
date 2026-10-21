@@ -884,18 +884,34 @@ body {
   padding: 6px 2px;
 }
 
-/* IC Notch at top */
+
+/* IC Notch at top — shows pin 1 orientation */
 .seated-ic::before {
   content: "";
   position: absolute;
   top: -1px;
-  width: 10px;
-  height: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 7px;
   background: var(--zif-green);
-  border-bottom-left-radius: 5px;
-  border-bottom-right-radius: 5px;
   border: 1px solid #000;
   border-top: none;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  z-index: 2;
+}
+
+/* Pin 1 marker */
+.seated-ic::after {
+  content: "1";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  color: #facc15;
+  font-size: 9px;
+  font-weight: 900;
+  z-index: 3;
 }
 
 .seated-ic .ic-part-no {

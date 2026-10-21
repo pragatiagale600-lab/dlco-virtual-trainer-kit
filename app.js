@@ -522,6 +522,89 @@
   };
 
   let targetModalSocket = null;
+  // Undo / Redo History for Wire Operations
+const wireUndoStack = [];
+const wireRedoStack = [];
+
+function saveWireHistory() {
+  wireUndoStack.push(JSON.stringify(state.wires));
+  if (wireUndoStack.length > 100) {
+    wireUndoStack.shift();
+  }
+  wireRedoStack.length = 0;
+}
+
+function restoreWireHistory(wires) {
+  state.wires = JSON.parse(wires);
+  state.selectedWireId = null;
+  cancelWireSelection();
+  DOM.btnDeleteSelectedWire.classList.add('hidden');
+  renderWires();
+  runSimulation();
+  updateStatusBar();
+}
+
+function undoWireAction() {
+  if (wireUndoStack.length === 0) {
+    flashStatus('Nothing to undo.', true);
+    return;
+  }
+
+  wireRedoStack.push(JSON.stringify(state.wires));
+  const previousState = wireUndoStack.pop();
+
+  restoreWireHistory(previousState);
+  flashStatus('Undo successful.');
+}
+
+function redoWireAction() {
+  if (wireRedoStack.length === 0) {
+    flashStatus('Nothing to redo.', true);
+    return;
+  }
+
+  wireUndoStack.push(JSON.stringify(state.wires));
+
+  if (wireUndoStack.length > 100) {
+    wireUndoStack.shift();
+  }
+
+  const nextState = wireRedoStack.pop();
+  restoreWireHistory(nextState);
+  flashStatus('Redo successful.');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+  const target = event.target;
+
+  if (
+    target &&
+    (
+      target.isContentEditable ||
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+    )
+  ) {
+    return;
+  }
+
+  if (event.ctrlKey && !event.altKey && event.key.toLowerCase() === 'z') {
+    event.preventDefault();
+
+    if (event.shiftKey) {
+      redoWireAction();
+    } else {
+      undoWireAction();
+    }
+  } else if (
+    event.ctrlKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === 'y'
+  ) {
+    event.preventDefault();
+    redoWireAction();
+  }
+});
 
   // =========================================================================
   // 4. BOARD RENDERING & INITIALIZATION
@@ -614,12 +697,14 @@
 
     socketKeys.forEach(sockId => {
       const sockData = state.sockets[sockId];
-      const maxPins = sockId === 'U6' ? 28 : 16;
+      const icDef = sockData.ic ? IC_DEFINITIONS[sockData.ic] : null;
+      const maxPins = icDef
+  ? icDef.pins
+  : (sockId === 'U6' ? 28 : 16);
       const col = document.createElement('div');
       col.className = 'socket-column';
       col.id = `sock_col_${sockId}`;
 
-      const icDef = sockData.ic ? IC_DEFINITIONS[sockData.ic] : null;
 
       // Header
       let pwrClass = 'socket-power-status';
@@ -787,6 +872,7 @@
 
   function deleteSelectedWire() {
     if (!state.selectedWireId) return;
+    saveWireHistory();
     state.wires = state.wires.filter(w => w.id !== state.selectedWireId);
     state.selectedWireId = null;
     DOM.btnDeleteSelectedWire.classList.add('hidden');
@@ -833,6 +919,8 @@
     }
 
     // Add new wire
+    saveWireHistory();
+
     const color = getAutoWireColor(tidA, tidB);
     state.wires.push({
       id: state.nextWireId++,
@@ -1399,6 +1487,7 @@
         handleTerminalClick(tid);
         return;
       }
+      
 
       // Empty ZIF Socket click -> Open IC selector
       const zifCore = e.target.closest('.zif-socket-core');

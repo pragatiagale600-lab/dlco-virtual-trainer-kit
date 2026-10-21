@@ -9,8 +9,8 @@
   // =========================================================================
   // 1. IC LIBRARY DEFINITIONS & EXACT DATASHEET SPECIFICATIONS
   // =========================================================================
-
-  const IC_DEFINITIONS = {
+const IC_DEFINITIONS
+   = {
     '7400': {
       name: '7400 Quad 2-Input NAND Gate',
       package: '14-Pin DIP',
@@ -613,13 +613,18 @@
     const socketKeys = ['U1', 'U2', 'U3', 'U4', 'U5', 'U6'];
 
     socketKeys.forEach(sockId => {
-      const sockData = state.sockets[sockId];
-      const maxPins = sockId === 'U6' ? 28 : 16;
+  const sockData = state.sockets[sockId];
+  const icDef = sockData.ic ? IC_DEFINITIONS[sockData.ic] : null;
+  const maxPins = icDef
+    ? icDef.pins
+    : (sockId === 'U6' ? 28 : 16);
+      
+      
+      
       const col = document.createElement('div');
       col.className = 'socket-column';
       col.id = `sock_col_${sockId}`;
 
-      const icDef = sockData.ic ? IC_DEFINITIONS[sockData.ic] : null;
 
       // Header
       let pwrClass = 'socket-power-status';
