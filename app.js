@@ -518,7 +518,9 @@
     btnZoomReset: document.getElementById('btnZoomReset'),
     zoomLabel: document.getElementById('zoomLabel'),
     btnClearWires: document.getElementById('btnClearWires'),
-    btnResetBoard: document.getElementById('btnResetBoard')
+    btnResetBoard: document.getElementById('btnResetBoard'),
+    btnUndoWire: document.getElementById('btnUndoWire'),
+    btnRedoWire: document.getElementById('btnRedoWire'),
   };
 
   let targetModalSocket = null;
@@ -1478,15 +1480,26 @@ document.addEventListener('keydown', function(event) {
   // =========================================================================
 
   function setupEventListeners() {
+
+    // Undo / Redo button listeners
+    if (DOM.btnUndoWire) {
+        DOM.btnUndoWire.addEventListener('click', undoWireAction);
+    }
+
+    if (DOM.btnRedoWire) {
+        DOM.btnRedoWire.addEventListener('click', redoWireAction);
+    }
+
     // Board terminal clicks
     DOM.trainerBoard.addEventListener('click', e => {
-      const jack = e.target.closest('.terminal-jack');
-      if (jack) {
-        e.stopPropagation();
-        const tid = jack.dataset.tid;
-        handleTerminalClick(tid);
-        return;
-      }
+        const jack = e.target.closest('.terminal-jack');
+
+        if (jack) {
+            e.stopPropagation();
+            const tid = jack.dataset.tid;
+            handleTerminalClick(tid);
+            return;
+        }
       
 
       // Empty ZIF Socket click -> Open IC selector
