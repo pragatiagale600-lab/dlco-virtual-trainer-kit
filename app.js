@@ -231,8 +231,8 @@
         16: { name: '2CLK', type: 'clk' }
       },
       initInternalState: () => ({
-        ff1: { q: 0, qBar: 1, lastClk: 1 },
-        ff2: { q: 0, qBar: 1, lastClk: 1 }
+        ff1: { q: 0, qBar: 1, lastClk: null },
+        ff2: { q: 0, qBar: 1, lastClk: null }
       }),
       evaluateSequential: function (state, inputs, isClockEdge) {
         // Asynchronous controls: PRE and CLR are active LOW
@@ -254,7 +254,7 @@
           state.ff1.qBar = 1; // Both high unstable
         } else if (pre1 === 1 && clr1 === 1) {
           // Negative-edge triggered: 1 -> 0 transition
-          if (state.ff1.lastClk === 1 && clk1 === 0) {
+          if (state.ff1.lastClk !== null && state.ff1.lastClk === 1 && clk1 === 0) {
             if (j1 === 0 && k1 === 0) {
               // Hold
             } else if (j1 === 0 && k1 === 1) {
@@ -289,7 +289,7 @@
           state.ff2.q = 1;
           state.ff2.qBar = 1;
         } else if (pre2 === 1 && clr2 === 1) {
-          if (state.ff2.lastClk === 1 && clk2 === 0) {
+          if (state.ff2.lastClk !== null && state.ff2.lastClk === 1 && clk2 === 0) {
             if (j2 === 0 && k2 === 0) {
               // Hold
             } else if (j2 === 0 && k2 === 1) {
@@ -341,8 +341,8 @@
       initInternalState: () => ({
         qa: 0,
         b5Count: 0, // 0 to 4
-        lastCka: 1,
-        lastCkb: 0
+        lastCka: null,
+        lastCkb: null
       }),
       evaluateSequential: function (state, inputs, isClockEdge) {
         const r01 = inputs[2], r02 = inputs[3];
@@ -354,26 +354,28 @@
         if (r01 === 1 && r02 === 1) {
           state.qa = 0;
           state.b5Count = 0;
+          if (cka !== 'Z') state.lastCka = cka;
           state.lastCkb = 0;
         }
         // Master Set: R9(1)=1 AND R9(2)=1 => 1001 (9)
         else if (r91 === 1 && r92 === 1) {
           state.qa = 1;
           state.b5Count = 4; // QD=1, QC=0, QB=0, QA=1
+          if (cka !== 'Z') state.lastCka = cka;
           state.lastCkb = 1;
         } else {
           // Divide by 2: negative edge on CKA (1 -> 0)
-          if (state.lastCka === 1 && cka === 0) {
+          if (state.lastCka !== null && state.lastCka === 1 && cka === 0) {
             state.qa = state.qa === 1 ? 0 : 1;
           }
           // Divide by 5: negative edge on CKB (1 -> 0)
           // If CKB is wired to QA (inputs[1] tracks QA), or defaults to QA in decade mode
           const effectiveCkb = (inputs[1] !== undefined && inputs[1] !== 'Z') ? inputs[1] : state.qa;
-          if (state.lastCkb === 1 && effectiveCkb === 0) {
+          if (state.lastCkb !== null && state.lastCkb === 1 && effectiveCkb === 0) {
             state.b5Count = (state.b5Count + 1) % 5;
           }
           if (cka !== 'Z') state.lastCka = cka;
-          state.lastCkb = effectiveCkb;
+          if (effectiveCkb !== 'Z') state.lastCkb = effectiveCkb;
         }
 
         let qb = 0, qc = 0, qd = 0;
@@ -432,7 +434,7 @@
 
     // Pulser
     pulser: {
-      state: 0,
+      state: 1, // Idle HIGH: TTL active-low pushbutton normally at +5V
       activeTimer: null
     },
 
@@ -815,6 +817,7 @@ document.addEventListener('keydown', function(event) {
     if (tidA.startsWith('gnd:') || tidB.startsWith('gnd:')) return '#16a34a'; // Green for GND
     if (tidA.startsWith('clk:') || tidB.startsWith('clk:')) return '#d97706'; // Amber for Clock
     if (tidA.startsWith('out:') || tidB.startsWith('out:')) return '#9333ea'; // Purple for Output LEDs
+    if (tidA.startsWith('seg:') || tidB.startsWith('seg:')) return '#06b6d4'; // Cyan for 7-Segment Displays
     return '#2563eb'; // Blue for signals
   }
 
@@ -1026,39 +1029,50 @@ document.addEventListener('keydown', function(event) {
       }
     });
 
-    // Step 3: Map primary drivers to nets
+    // Step 3: Map primary drivers to terminalDrivers
     // Drivers: VCC(+5V=1), GND(0V=0), Input switches, Clock outputs
-    const netDrivers = {};
-    function addDriver(tid, val, desc) {
-      const net = find(tid);
-      if (!netDrivers[net]) netDrivers[net] = [];
-      netDrivers[net].push({ tid, val, desc });
+    const terminalDrivers = {};
+    function setDriver(tid, val, desc) {
+      if (val !== 'Z') {
+        terminalDrivers[tid] = { tid, val, desc };
+      } else {
+        delete terminalDrivers[tid];
+      }
     }
 
     // Primary Power Rails
     for (let i = 1; i <= 10; i++) {
-      addDriver(`vcc:${i}`, 1, 'VCC (+5V Rail)');
-      addDriver(`gnd:${i}`, 0, 'GND (0V Ground Rail)');
+      setDriver(`vcc:${i}`, 1, 'VCC (+5V Rail)');
+      setDriver(`gnd:${i}`, 0, 'GND (0V Ground Rail)');
     }
 
     // Primary Input Switches
     for (let i = 1; i <= 16; i++) {
-      addDriver(`in:${i}`, state.switches[i], `Switch S${i}`);
+      setDriver(`in:${i}`, state.switches[i], `Switch S${i}`);
     }
 
     // Clock Outputs
-    addDriver('clk:main', state.clock.state, 'Clock Main');
-    addDriver('clk:bar', state.clock.state === 1 ? 0 : 1, 'Clock Bar');
-    addDriver('clk:pulse', state.pulser.state, 'Pulser Output');
+    setDriver('clk:main', state.clock.state, 'Clock Main');
+    setDriver('clk:bar', state.clock.state === 1 ? 0 : 1, 'Clock Bar');
+    setDriver('clk:pulse', state.pulser.state, 'Pulser Output');
 
     // Step 4: Iterative Gate & IC Propagation (handling feedback & cascade)
     const pinValues = {};
     let iteration = 0;
     let changed = true;
-    const maxIterations = 25;
+    const maxIterations = 35;
+    let netDrivers = {};
 
     while (changed && iteration++ < maxIterations) {
       changed = false;
+
+      // Group drivers by net to resolve net logic levels
+      netDrivers = {};
+      Object.keys(terminalDrivers).forEach(tid => {
+        const net = find(tid);
+        if (!netDrivers[net]) netDrivers[net] = [];
+        netDrivers[net].push(terminalDrivers[tid]);
+      });
 
       // Determine logic value on each net
       const netValues = {};
@@ -1094,7 +1108,9 @@ document.addEventListener('keydown', function(event) {
           // Unpowered IC: All outputs remain 'Z'
           Object.keys(icDef.pinout).forEach(p => {
             if (icDef.pinout[p].type === 'out') {
-              pinValues[`${sockId}:p${p}`] = 'Z';
+              const outTid = `${sockId}:p${p}`;
+              pinValues[outTid] = 'Z';
+              setDriver(outTid, 'Z', '');
             }
           });
           return;
@@ -1112,10 +1128,7 @@ document.addEventListener('keydown', function(event) {
               pinValues[outTid] = outVal;
               changed = true;
             }
-            // Register as driver
-            if (outVal !== 'Z') {
-              addDriver(outTid, outVal, `${sockId} Output Pin ${g.output}`);
-            }
+            setDriver(outTid, outVal, `${sockId} Output Pin ${g.output}`);
           });
         }
 
@@ -1133,9 +1146,7 @@ document.addEventListener('keydown', function(event) {
               pinValues[outTid] = outVal;
               changed = true;
             }
-            if (outVal !== 'Z') {
-              addDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
-            }
+            setDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
           });
         }
 
@@ -1150,10 +1161,11 @@ document.addEventListener('keydown', function(event) {
           [7, 8, 10, 9].forEach(p => {
             const outTid = `${sockId}:p${p}`;
             const outVal = outMap[p];
-            pinValues[outTid] = outVal;
-            if (outVal !== 'Z') {
-              addDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
+            if (pinValues[outTid] !== outVal) {
+              pinValues[outTid] = outVal;
+              changed = true;
             }
+            setDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
           });
         }
 
@@ -1168,10 +1180,11 @@ document.addEventListener('keydown', function(event) {
           [12, 9, 8, 11].forEach(p => {
             const outTid = `${sockId}:p${p}`;
             const outVal = outMap[p];
-            pinValues[outTid] = outVal;
-            if (outVal !== 'Z') {
-              addDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
+            if (pinValues[outTid] !== outVal) {
+              pinValues[outTid] = outVal;
+              changed = true;
             }
+            setDriver(outTid, outVal, `${sockId} Output Pin ${p}`);
           });
         }
       });
@@ -1767,8 +1780,178 @@ document.addEventListener('keydown', function(event) {
   }
 
   // =========================================================================
-  // 11. COMPREHENSIVE DATABASE OF 19 DLCO PRACTICALS & VIVA HELPER
+  // 11. COMPREHENSIVE DATABASE OF 21 DLCO PRACTICALS & VIVA HELPER
   // =========================================================================
+
+  let currentModN = 12;
+
+  function createModNExperiment(N) {
+    N = Math.max(10, Math.min(99, parseInt(N, 10) || 12));
+    const tensVal = Math.floor(N / 10);
+    const unitsVal = N % 10;
+
+    function getHighBits(val, socket, labelPrefix) {
+      const pins = [];
+      if (val & 1) pins.push({ pin: `${socket}:p12`, bit: 1, name: `${labelPrefix}QA` });
+      if (val & 2) pins.push({ pin: `${socket}:p9`, bit: 2, name: `${labelPrefix}QB` });
+      if (val & 4) pins.push({ pin: `${socket}:p8`, bit: 4, name: `${labelPrefix}QC` });
+      if (val & 8) pins.push({ pin: `${socket}:p11`, bit: 8, name: `${labelPrefix}QD` });
+      return pins;
+    }
+
+    const tensBits = getHighBits(tensVal, 'U2', 'Tens ');
+    const unitsBits = getHighBits(unitsVal, 'U1', 'Units ');
+    const allBits = [...tensBits, ...unitsBits];
+
+    const socketsConfig = { U1: '7490', U2: '7490' };
+    const requiredIcs = ['7490', '7490'];
+
+    const wires = [
+      // Power U1
+      { from: 'vcc:1', to: 'U1:p5' }, { from: 'gnd:1', to: 'U1:p10' },
+      // Power U2
+      { from: 'vcc:3', to: 'U2:p5' }, { from: 'gnd:3', to: 'U2:p10' },
+
+      // U1 decade mode: QA -> CKB
+      { from: 'U1:p12', to: 'U1:p1' },
+      // U2 decade mode: QA -> CKB
+      { from: 'U2:p12', to: 'U2:p1' },
+
+      // Inactive R9 pins tied to GND
+      { from: 'gnd:4', to: 'U1:p6' }, { from: 'gnd:4', to: 'U1:p7' },
+      { from: 'gnd:6', to: 'U2:p6' }, { from: 'gnd:6', to: 'U2:p7' },
+
+      // Clock input to Units
+      { from: 'clk:pulse', to: 'U1:p14' },
+      // Cascade Carry: Units QD to Tens CKA
+      { from: 'U1:p11', to: 'U2:p14' },
+
+      // Displays: Units to 7-Segment A
+      { from: 'U1:p12', to: 'seg:a0' },
+      { from: 'U1:p9', to: 'seg:a1' },
+      { from: 'U1:p8', to: 'seg:a2' },
+      { from: 'U1:p11', to: 'seg:a3' },
+
+      // Displays: Tens to 7-Segment B
+      { from: 'U2:p12', to: 'seg:b0' },
+      { from: 'U2:p9', to: 'seg:b1' },
+      { from: 'U2:p8', to: 'seg:b2' },
+      { from: 'U2:p11', to: 'seg:b3' },
+
+      // LEDs: Units to L1..L4, Tens to L5..L8
+      { from: 'U1:p12', to: 'out:1' },
+      { from: 'U1:p9', to: 'out:2' },
+      { from: 'U1:p8', to: 'out:3' },
+      { from: 'U1:p11', to: 'out:4' },
+      { from: 'U2:p12', to: 'out:5' },
+      { from: 'U2:p9', to: 'out:6' },
+      { from: 'U2:p8', to: 'out:7' },
+      { from: 'U2:p11', to: 'out:8' }
+    ];
+
+    let resetSource = null;
+    let gateInstructions = [];
+
+    if (allBits.length === 1) {
+      resetSource = allBits[0].pin;
+      gateInstructions.push(`Single terminal bit detected: Connect ${allBits[0].name} (${allBits[0].pin}) directly to Reset inputs (U1:p2,p3 and U2:p2,p3).`);
+    } else if (allBits.length > 1) {
+      socketsConfig['U3'] = '7408';
+      requiredIcs.push('7408');
+      wires.push({ from: 'vcc:5', to: 'U3:p14' }, { from: 'gnd:7', to: 'U3:p7' });
+
+      const gatesU3 = [
+        { in1: 'U3:p1', in2: 'U3:p2', out: 'U3:p3' },
+        { in1: 'U3:p4', in2: 'U3:p5', out: 'U3:p6' },
+        { in1: 'U3:p9', in2: 'U3:p10', out: 'U3:p8' },
+        { in1: 'U3:p12', in2: 'U3:p13', out: 'U3:p11' }
+      ];
+
+      if (allBits.length <= 5) {
+        wires.push({ from: allBits[0].pin, to: gatesU3[0].in1 });
+        wires.push({ from: allBits[1].pin, to: gatesU3[0].in2 });
+        gateInstructions.push(`Seat U3: 7408. AND Gate 1 (pins 1,2): Wire ${allBits[0].name} (${allBits[0].pin}) and ${allBits[1].name} (${allBits[1].pin}).`);
+        let currOut = gatesU3[0].out;
+
+        for (let i = 2; i < allBits.length; i++) {
+          const g = gatesU3[i - 1];
+          wires.push({ from: currOut, to: g.in1 });
+          wires.push({ from: allBits[i].pin, to: g.in2 });
+          gateInstructions.push(`AND Gate ${i} (pins ${g.in1.split(':')[1]}, ${g.in2.split(':')[1]}): Wire previous output (${currOut}) and ${allBits[i].name} (${allBits[i].pin}).`);
+          currOut = g.out;
+        }
+        resetSource = currOut;
+      } else {
+        socketsConfig['U4'] = '7408';
+        requiredIcs.push('7408');
+        wires.push({ from: 'vcc:7', to: 'U4:p14' }, { from: 'gnd:9', to: 'U4:p7' });
+
+        wires.push({ from: allBits[0].pin, to: gatesU3[0].in1 });
+        wires.push({ from: allBits[1].pin, to: gatesU3[0].in2 });
+        let currOut = gatesU3[0].out;
+        for (let i = 2; i < 5; i++) {
+          const g = gatesU3[i - 1];
+          wires.push({ from: currOut, to: g.in1 });
+          wires.push({ from: allBits[i].pin, to: g.in2 });
+          currOut = g.out;
+        }
+        wires.push({ from: currOut, to: 'U4:p1' });
+        wires.push({ from: allBits[5].pin, to: 'U4:p2' });
+        currOut = 'U4:p3';
+        if (allBits.length > 6) {
+          wires.push({ from: currOut, to: 'U4:p4' });
+          wires.push({ from: allBits[6].pin, to: 'U4:p5' });
+          currOut = 'U4:p6';
+        }
+        resetSource = currOut;
+      }
+    }
+
+    if (resetSource) {
+      wires.push({ from: resetSource, to: 'U1:p2' });
+      wires.push({ from: resetSource, to: 'U1:p3' });
+      wires.push({ from: resetSource, to: 'U2:p2' });
+      wires.push({ from: resetSource, to: 'U2:p3' });
+    }
+
+    const table = [];
+    const sampleIndices = new Set([0, 1, 2, Math.floor(N / 2), N - 2, N - 1]);
+    for (let i = 0; i < N; i++) {
+      if (N <= 16 || sampleIndices.has(i)) {
+        const t = Math.floor(i / 10);
+        const u = i % 10;
+        table.push({ Pulse: i, Tens: t, Units: u, Count: `${t}${u}`, Action: 'Count state' });
+      }
+    }
+    table.push({ Pulse: N, Tens: 0, Units: 0, Count: '00', Action: `Terminal Count ${N} detected: Resets to 00` });
+
+    return {
+      title: `Configurable MOD-${N} Decimal Counter (MOD-10 to MOD-99)`,
+      aim: `To configure, construct, and verify a MOD-${N} counter (counts 00 to ${String(N - 1).padStart(2, '0')}, exactly ${N} states) using two 7490 decade counters and 7408 AND decoding logic.`,
+      requiredIcs,
+      socketLayout: socketsConfig,
+      inputsDesc: `Clock: Pulser or continuous CLK. Selected MOD = ${N} (resets at count ${N}).`,
+      outputsDesc: `Tens on 7-Segment B & LEDs L5..L8; Units on 7-Segment A & LEDs L1..L4.`,
+      instructions: [
+        '1. Seat IC 7490 in U1 (Units) and U2 (Tens). Wire Pin 5 to VCC and Pin 10 to GND on both.',
+        '2. Configure both 7490s as BCD Decade Counters: Wire U1:p12 (QA) to U1:p1 (CKB) and U2:p12 (QA) to U2:p1 (CKB).',
+        '3. Wire Pulser (clk:pulse) to U1:p14 (Units CKA). Wire Units Carry U1:p11 (QD) to Tens U2:p14 (CKA).',
+        '4. Wire Set-to-9 inputs (Pins 6, 7 on U1 & U2) to GND.',
+        `5. State Decoding for Terminal Count ${N}: Detect active-high bits: ${allBits.map(b => b.name).join(', ')}.`,
+        ...gateInstructions,
+        `6. Connect Reset signal (${resetSource}) to Master Reset inputs: U1:p2, U1:p3, U2:p2, and U2:p3.`,
+        '7. Wire outputs: U1 QA..QD to 7-Segment A (A0..A3) and L1..L4; U2 QA..QD to 7-Segment B (B0..B3) and L5..L8.'
+      ],
+      truthTable: table,
+      referenceWires: wires,
+      viva: [
+        { q: `What is the modulus of this counter and how many states does it count?`, a: `Modulus is ${N}. It counts through exactly ${N} distinct states from 00 to ${N - 1}, and resets to 00 on the ${N}th clock pulse.` },
+        { q: `How is the reset condition for MOD-${N} determined?`, a: `By decoding the BCD bits for Tens (${tensVal}) and Units (${unitsVal}) using AND gates. When all required high bits become 1 simultaneously at count ${N}, the AND gate outputs 1, asynchronously resetting the counter to 00.` },
+        { q: 'Why is an AND gate tree used rather than software intervention?', a: 'Real digital circuits use combinational logic gates to detect the terminal count and drive the asynchronous reset pins R0(1) and R0(2) directly.' },
+        { q: 'Can this circuit be reconfigured for any MOD value between 10 and 99?', a: 'Yes, by changing which BCD output bits are connected to the AND gate tree, any modulus from MOD-10 through MOD-99 can be realized.' }
+      ]
+    };
+  }
 
   const EXPERIMENTS = {
     exp1: {
@@ -2544,14 +2727,102 @@ document.addEventListener('keydown', function(event) {
         { q: 'How can IC 7490 be configured as a MOD-6 counter (e.g. for digital clocks)?', a: 'Connect QB (Pin 9) to R0(1) and QC (Pin 8) to R0(2). When the count reaches 6 (binary 0110: QC=1, QB=1), the counter immediately resets to 0000.' },
         { q: 'What is the function of pins R9(1) and R9(2)?', a: 'They are master set-to-9 inputs. When both are HIGH, the counter outputs are asynchronously forced to 1001 (BCD 9).' }
       ]
-    }
+    },
+
+    exp20: {
+      title: 'MOD-100 Two-Digit Decimal Counter (Two Cascaded 7490 ICs)',
+      aim: 'To construct and verify a genuine two-digit decimal counter (counts 00 to 99 and rolls over to 00) using two cascaded 7490 decade counters.',
+      requiredIcs: ['7490', '7490'],
+      socketLayout: { U1: '7490', U2: '7490' },
+      inputsDesc: 'Clock: Pulser or continuous CLK. Master resets tied to GND.',
+      outputsDesc: 'Units on 7-Segment A & LEDs L1..L4; Tens on 7-Segment B & LEDs L5..L8.',
+      instructions: [
+        '1. Seat IC 7490 in Socket U1 (Units) and Socket U2 (Tens). Wire Pin 5 to VCC (+5V) and Pin 10 to GND (0V) on both ICs.',
+        '2. Configure both 7490s as BCD Decade Counters: Wire QA (Pin 12) to CKB (Pin 1) on both U1 and U2.',
+        '3. Connect Master Resets R0(1), R0(2), R9(1), R9(2) (Pins 2, 3, 6, 7) to GND on both ICs.',
+        '4. Connect Input Clock: Wire Pulser (clk:pulse) or Clock CLK to U1:p14 (CKA of units).',
+        '5. Cascade Carry from Units to Tens: Wire U1:p11 (QD, bit 3 of units) to U2:p14 (CKA of tens). On 9->0 rollover, QD falling edge clocks the tens stage.',
+        '6. Wire Units outputs: U1:p12 (QA) to seg:a0 and L1; U1:p9 (QB) to seg:a1 and L2; U1:p8 (QC) to seg:a2 and L3; U1:p11 (QD) to seg:a3 and L4.',
+        '7. Wire Tens outputs: U2:p12 (QA) to seg:b0 and L5; U2:p9 (QB) to seg:b1 and L6; U2:p8 (QC) to seg:b2 and L7; U2:p11 (QD) to seg:b3 and L8.'
+      ],
+      truthTable: [
+        { Pulse: 0, Tens: 0, Units: 0, Count: '00' },
+        { Pulse: 1, Tens: 0, Units: 1, Count: '01' },
+        { Pulse: 2, Tens: 0, Units: 2, Count: '02' },
+        { Pulse: 9, Tens: 0, Units: 9, Count: '09' },
+        { Pulse: 10, Tens: 1, Units: 0, Count: '10' },
+        { Pulse: 20, Tens: 2, Units: 0, Count: '20' },
+        { Pulse: 50, Tens: 5, Units: 0, Count: '50' },
+        { Pulse: 99, Tens: 9, Units: 9, Count: '99' },
+        { Pulse: 100, Tens: 0, Units: 0, Count: '00' }
+      ],
+      referenceWires: [
+        // Power U1
+        { from: 'vcc:1', to: 'U1:p5' }, { from: 'gnd:1', to: 'U1:p10' },
+        // Power U2
+        { from: 'vcc:3', to: 'U2:p5' }, { from: 'gnd:3', to: 'U2:p10' },
+        // U1 QA to CKB
+        { from: 'U1:p12', to: 'U1:p1' },
+        // U1 Resets to GND
+        { from: 'gnd:2', to: 'U1:p2' }, { from: 'gnd:2', to: 'U1:p3' },
+        { from: 'gnd:4', to: 'U1:p6' }, { from: 'gnd:4', to: 'U1:p7' },
+        // Clock to U1 CKA
+        { from: 'clk:pulse', to: 'U1:p14' },
+        // Carry: U1 QD to U2 CKA
+        { from: 'U1:p11', to: 'U2:p14' },
+        // U2 QA to CKB
+        { from: 'U2:p12', to: 'U2:p1' },
+        // U2 Resets to GND
+        { from: 'gnd:5', to: 'U2:p2' }, { from: 'gnd:5', to: 'U2:p3' },
+        { from: 'gnd:5', to: 'U2:p6' }, { from: 'gnd:5', to: 'U2:p7' },
+        // Units to 7-Seg A
+        { from: 'U1:p12', to: 'seg:a0' }, { from: 'U1:p9', to: 'seg:a1' },
+        { from: 'U1:p8', to: 'seg:a2' }, { from: 'U1:p11', to: 'seg:a3' },
+        // Tens to 7-Seg B
+        { from: 'U2:p12', to: 'seg:b0' }, { from: 'U2:p9', to: 'seg:b1' },
+        { from: 'U2:p8', to: 'seg:b2' }, { from: 'U2:p11', to: 'seg:b3' },
+        // Output LEDs
+        { from: 'U1:p12', to: 'out:1' }, { from: 'U1:p9', to: 'out:2' },
+        { from: 'U1:p8', to: 'out:3' }, { from: 'U1:p11', to: 'out:4' },
+        { from: 'U2:p12', to: 'out:5' }, { from: 'U2:p9', to: 'out:6' },
+        { from: 'U2:p8', to: 'out:7' }, { from: 'U2:p11', to: 'out:8' }
+      ],
+      viva: [
+        { q: 'How are two 7490 ICs cascaded to form a MOD-100 counter?', a: 'The Units 7490 QD output (Pin 11) is connected to the Tens 7490 CKA input (Pin 14). When the units digit rolls over from 9 (1001) to 0 (0000), QD transitions from 1 to 0 (falling edge), triggering the tens counter to advance.' },
+        { q: 'Why is QD used as the ripple clock rather than QA?', a: 'QA toggles on every single clock pulse (divide-by-2), whereas QD only transitions High-to-Low once every ten input clock pulses (on the 9->0 transition), providing the correct decimal carry.' },
+        { q: 'What is the maximum count of two cascaded 7490 decade counters?', a: 'Decimal 99 (BCD 1001 1001), representing 100 total states (00 to 99).' },
+        { q: 'How does the display show both digits?', a: 'Sockets U1 and U2 outputs are connected directly to 7-Segment Displays A (Units) and B (Tens), showing genuine simulated BCD decimal digits from 00 to 99.' }
+      ]
+    },
+
+    exp21: createModNExperiment(currentModN)
   };
 
   function renderExperimentDoc(expKey) {
     const exp = EXPERIMENTS[expKey];
     if (!exp) return;
 
+    let modConfigHtml = '';
+    if (expKey === 'exp21') {
+      modConfigHtml = `
+        <div class="mod-config-panel">
+          <label for="inputModN"><strong>Select Modulus (MOD-10 to MOD-99):</strong></label>
+          <div class="mod-input-row">
+            <input type="number" id="inputModN" min="10" max="99" value="${currentModN}" class="mod-number-input">
+            <button id="btnApplyModN" class="btn btn-micro btn-accent">Apply MOD</button>
+          </div>
+          <div class="mod-preset-badges">
+            <span style="font-size:11px; font-weight:700; align-self:center; color:#475569;">Presets:</span>
+            ${[10, 12, 16, 25, 50, 60, 75, 99].map(m => `
+              <button class="btn-mod-preset ${m === currentModN ? 'active' : ''}" data-mod="${m}">MOD-${m}</button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     let html = `
+      ${modConfigHtml}
       <div class="exp-doc-section">
         <h3>1. Aim</h3>
         <p>${exp.aim}</p>
@@ -2604,6 +2875,41 @@ document.addEventListener('keydown', function(event) {
 
     DOM.experimentDetailContainer.innerHTML = html;
     DOM.verificationResultBox.classList.add('hidden');
+
+    // Attach listeners for interactive MOD-N selection
+    if (expKey === 'exp21') {
+      const inputModN = document.getElementById('inputModN');
+      const btnApplyModN = document.getElementById('btnApplyModN');
+
+      const applyModValue = (val) => {
+        if (isNaN(val) || val < 10 || val > 99) {
+          flashStatus('Please select a valid MOD value between 10 and 99.', true);
+          return;
+        }
+        currentModN = val;
+        EXPERIMENTS['exp21'] = createModNExperiment(currentModN);
+        renderExperimentDoc('exp21');
+        flashStatus(`Configured for MOD-${currentModN}. Click 'Setup ICs' or 'Auto-Wire Reference Circuit' to test on board.`);
+      };
+
+      if (btnApplyModN && inputModN) {
+        btnApplyModN.addEventListener('click', () => {
+          applyModValue(parseInt(inputModN.value, 10));
+        });
+        inputModN.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            applyModValue(parseInt(inputModN.value, 10));
+          }
+        });
+      }
+
+      const presetBtns = DOM.experimentDetailContainer.querySelectorAll('.btn-mod-preset');
+      presetBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          applyModValue(parseInt(btn.dataset.mod, 10));
+        });
+      });
+    }
   }
 
   function setupExperimentICs(expKey) {
@@ -2687,10 +2993,13 @@ document.addEventListener('keydown', function(event) {
       return;
     }
 
-    // Check 4: Check if any output LEDs are wired
-    const hasOutputWired = state.wires.some(w => w.from.startsWith('out:') || w.to.startsWith('out:'));
+    // Check 4: Check if any output indicators (LEDs or 7-Seg) are wired
+    const hasOutputWired = state.wires.some(w =>
+      w.from.startsWith('out:') || w.to.startsWith('out:') ||
+      w.from.startsWith('seg:') || w.to.startsWith('seg:')
+    );
     if (!hasOutputWired) {
-      showVerifyResult(false, 'Output LEDs not connected! Connect IC outputs to OP1, OP2... to observe results.');
+      showVerifyResult(false, 'Output indicators not connected! Connect IC outputs to OP1..OP16 or 7-Segment Displays (seg:a0..a3, seg:b0..b3) to observe results.');
       return;
     }
 
